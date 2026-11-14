@@ -1,0 +1,15 @@
+{
+  "database_version": "2.0-sha1",
+  "malware_hashes_sha256": {
+    "275a021bbfb6489e54d471899f7db9d1663fc695ec2fe2a2c4538aabf651fd0f": "EICAR-Standard-AntiVirus-Test-File (Эталонный вирус)",
+    "131f95c51cc819465fa1797f6ccacf9d494aaaff46fa3eac73ae63ffbdfd8267": "EICAR-Test-Archive-ZIP"
+  },
+  "dangerous_strings": [
+    {"pattern": "api.telegram.org/bot", "score": 45, "desc": "Отправка украденных данных в Telegram-бот (Стиллер)"},
+    {"pattern": "://discord.com", "score": 40, "desc": "Отправка данных через Discord Webhook (Стиллер)"},
+    {"pattern": "stratum+tcp://", "score": 50, "desc": "Адрес майнинг-пула (Скрытый криптомайнер)"},
+    {"pattern": "xmrig", "score": 45, "desc": "Сигнатура криптомайнера XMRig"},
+    {"pattern": "add-mppreference", "score": 45, "desc": "Попытка отключить Защитник Windows"}
+  ],
+  "whitelist_paths": []
+}
