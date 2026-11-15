@@ -1,6 +1,5 @@
 import base64, ctypes, hashlib, json, math, os, re, sys, zipfile, pefile
 from ctypes import wintypes
-
 BASE_DIR = os.path.dirname(os.path.abspath(sys.executable if getattr(sys, "frozen", False) else __file__))
 SIG_DB = os.path.join(BASE_DIR, "signatures.json")
 
@@ -10,7 +9,16 @@ EICAR = b"EICAR-STANDARD-" + b"ANTIVIRUS-TEST-FILE"
 
 SAFE_NAMES = ("unins000.exe", "unins001.exe", "uninstall.exe", "update.exe", "squirrel.exe", "setup.exe")
 LEGIT_MZ = (".mui", ".pyd", ".ocx", ".ax", ".cpl", ".efi", ".drv", ".winmd", ".tlb", ".asi", ".bpl", ".ime", ".acm", ".node", ".tmp", ".msi", ".quarantined")
-EXCL_DIRS = ("\\microsoft\\windowsapps\\", "\\code\\user\\history\\", "\\_quarantine\\", "\\__pycache__\\", "\\.git\\", "\\roblox\\downloads\\")
+EXCL_DIRS = (
+    "\\microsoft\\windowsapps\\",
+    "\\appdata\\local\\programs\\",
+    "\\microsoft\\office\\solutionpackages\\",
+    "\\code\\user\\history\\",
+    "\\_quarantine\\",
+    "\\__pycache__\\",
+    "\\.git\\",
+    "\\roblox\\downloads\\",
+)
 EXCL_PREF = ("c:\\windows\\", "c:\\$winreagent\\", "c:\\program files\\windowsapps\\")
 
 APIS = {
