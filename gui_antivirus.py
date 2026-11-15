@@ -3,6 +3,7 @@ import json
 import multiprocessing
 import os
 import shutil
+import subprocess
 import sys
 import threading
 import tkinter as tk
@@ -31,14 +32,14 @@ os.makedirs(QUARANTINE_DIR, exist_ok=True)
 
 def check_single_instance():
     mutex = ctypes.windll.kernel32.CreateMutexW(
-        None, False, "MyAntivirus_KVRT_Mutex"
+        None, False, "MyAntivirus_Mutex"
     )
     if ctypes.windll.kernel32.GetLastError() == 183:
         sys.exit(0)
     return mutex
 
 
-class AntivirusKVRTApp(tk.Tk):
+class AntivirusApp(tk.Tk):
     def __init__(self):
         super().__init__()
         self.scanning = False
@@ -64,10 +65,10 @@ class AntivirusKVRTApp(tk.Tk):
         self.after(700, self.refresh_network_tab)
 
     def _setup_styles(self):
-        style = ttk.Style(self)
-        style.theme_use("clam")
-        style.configure("TNotebook", background="#0b1116", borderwidth=0)
-        style.configure(
+        s = ttk.Style(self)
+        s.theme_use("clam")
+        s.configure("TNotebook", background="#0b1116", borderwidth=0)
+        s.configure(
             "TNotebook.Tab",
             background="#131c24",
             foreground="#8b9bb4",
@@ -75,12 +76,12 @@ class AntivirusKVRTApp(tk.Tk):
             font=("Segoe UI", 10, "bold"),
             borderwidth=0,
         )
-        style.map(
+        s.map(
             "TNotebook.Tab",
             background=[("selected", "#00a88e")],
             foreground=[("selected", "#ffffff")],
         )
-        style.configure(
+        s.configure(
             "Treeview",
             background="#101820",
             foreground="#e2e8f0",
@@ -89,15 +90,15 @@ class AntivirusKVRTApp(tk.Tk):
             font=("Segoe UI", 9),
             borderwidth=0,
         )
-        style.configure(
+        s.configure(
             "Treeview.Heading",
             background="#182430",
             foreground="#00d2b4",
             font=("Segoe UI", 9, "bold"),
             relief="flat",
         )
-        style.map("Treeview", background=[("selected", "#1e3a4c")])
-        style.configure(
+        s.map("Treeview", background=[("selected", "#1e3a4c")])
+        s.configure(
             "KVRT.Horizontal.TProgressbar",
             troughcolor="#16202a",
             background="#00a88e",
@@ -106,51 +107,42 @@ class AntivirusKVRTApp(tk.Tk):
         )
 
     def _build_header(self):
-        header = tk.Frame(self, bg="#101820", height=58)
-        header.pack(fill="x")
-        header.pack_propagate(False)
+        hdr = tk.Frame(self, bg="#101820", height=58)
+        hdr.pack(fill="x")
+        hdr.pack_propagate(False)
 
-        logo_frame = tk.Frame(header, bg="#101820")
-        logo_frame.pack(side="left", padx=18)
-
+        left = tk.Frame(hdr, bg="#101820")
+        left.pack(side="left", padx=18)
         tk.Label(
-            logo_frame,
-            text="🛡️",
-            bg="#101820",
-            fg="#00a88e",
-            font=("Segoe UI", 18),
+            left, text="🛡️", bg="#101820", fg="#00a88e", font=("Segoe UI", 18)
         ).pack(side="left", padx=(0, 8))
 
-        title_box = tk.Frame(logo_frame, bg="#101820")
-        title_box.pack(side="left")
+        tbox = tk.Frame(left, bg="#101820")
+        tbox.pack(side="left")
         tk.Label(
-            title_box,
+            tbox,
             text="Virus Removal Tool",
             bg="#101820",
             fg="#ffffff",
             font=("Segoe UI", 13, "bold"),
         ).pack(anchor="w")
         tk.Label(
-            title_box,
-            text="Утилита лечения и поиска угроз | Engine v2.0",
+            tbox,
+            text="Утилита лечения и поиска угроз | Engine v3.0",
             bg="#101820",
             fg="#64748b",
             font=("Segoe UI", 8),
         ).pack(anchor="w")
 
-        is_admin = bool(ctypes.windll.shell32.IsUserAnAdmin())
-        adm_text = (
+        is_adm = bool(ctypes.windll.shell32.IsUserAnAdmin())
+        txt = (
             "● Режим Администратора (Полный доступ)"
-            if is_admin
-            else "▲ Обычный режим (Ограниченная очистка реестра)"
+            if is_adm
+            else "▲ Обычный режим (Ограниченная очистка)"
         )
-        adm_color = "#00d2b4" if is_admin else "#f59e0b"
+        clr = "#00d2b4" if is_adm else "#f59e0b"
         tk.Label(
-            header,
-            text=adm_text,
-            bg="#101820",
-            fg=adm_color,
-            font=("Segoe UI", 9, "bold"),
+            hdr, text=txt, bg="#101820", fg=clr, font=("Segoe UI", 9, "bold")
         ).pack(side="right", padx=18)
 
     def _build_tabs(self):
@@ -173,26 +165,25 @@ class AntivirusKVRTApp(tk.Tk):
         self._build_network_tab()
 
     def _build_scan_tab(self):
-        top_card = tk.Frame(
+        card = tk.Frame(
             self.tab_scan,
             bg="#101820",
             highlightbackground="#1e2d3b",
             highlightthickness=1,
         )
-        top_card.pack(fill="x", pady=(6, 10))
+        card.pack(fill="x", pady=(6, 10))
 
-        left_opts = tk.Frame(top_card, bg="#101820")
-        left_opts.pack(side="left", fill="both", expand=True, padx=16, pady=12)
-
+        opts = tk.Frame(card, bg="#101820")
+        opts.pack(side="left", fill="both", expand=True, padx=16, pady=12)
         tk.Label(
-            left_opts,
+            opts,
             text="Области проверки:",
             bg="#101820",
             fg="#ffffff",
             font=("Segoe UI", 10, "bold"),
         ).pack(anchor="w", pady=(0, 6))
 
-        cb_style = {
+        cb = {
             "bg": "#101820",
             "fg": "#cbd5e1",
             "selectcolor": "#0b1116",
@@ -201,44 +192,39 @@ class AntivirusKVRTApp(tk.Tk):
             "font": ("Segoe UI", 9),
         }
         tk.Checkbutton(
-            left_opts,
+            opts,
             text="Системная память (активные процессы)",
             variable=self.var_mem,
-            **cb_style,
+            **cb,
         ).pack(anchor="w")
         tk.Checkbutton(
-            left_opts,
-            text="Объекты автозапуска (реестр Windows Run)",
+            opts,
+            text="Объекты автозапуска, Планировщик и файл hosts",
             variable=self.var_autorun,
-            **cb_style,
+            **cb,
         ).pack(anchor="w")
         tk.Checkbutton(
-            left_opts,
-            text="Системные разделы (Рабочий стол, Загрузки, AppData)",
+            opts,
+            text="Системные разделы (Рабочий стол, Загрузки, AppData, ProgramData)",
             variable=self.var_quick,
-            **cb_style,
+            **cb,
         ).pack(anchor="w")
 
-        custom_row = tk.Frame(left_opts, bg="#101820")
-        custom_row.pack(fill="x", pady=(2, 0))
+        crow = tk.Frame(opts, bg="#101820")
+        crow.pack(fill="x", pady=(2, 0))
         tk.Checkbutton(
-            custom_row,
-            text="Выборочный объект:",
-            variable=self.var_custom,
-            **cb_style,
+            crow, text="Выборочный объект:", variable=self.var_custom, **cb
         ).pack(side="left")
-
         self.lbl_custom_path = tk.Label(
-            custom_row,
+            crow,
             text="не выбран",
             bg="#101820",
             fg="#64748b",
             font=("Segoe UI", 9, "italic"),
         )
         self.lbl_custom_path.pack(side="left", padx=6)
-
         tk.Button(
-            custom_row,
+            crow,
             text="📁 Папка",
             bg="#1e2d3b",
             fg="#e2e8f0",
@@ -247,9 +233,8 @@ class AntivirusKVRTApp(tk.Tk):
             padx=8,
             command=self.choose_custom_folder,
         ).pack(side="left", padx=2)
-
         tk.Button(
-            custom_row,
+            crow,
             text="📄 Файл / ZIP",
             bg="#1e2d3b",
             fg="#e2e8f0",
@@ -259,16 +244,14 @@ class AntivirusKVRTApp(tk.Tk):
             command=self.choose_custom_file,
         ).pack(side="left", padx=2)
 
-        right_ctrl = tk.Frame(top_card, bg="#101820")
-        right_ctrl.pack(side="right", padx=20, pady=12)
-
+        ctrl = tk.Frame(card, bg="#101820")
+        ctrl.pack(side="right", padx=20, pady=12)
         self.btn_start = tk.Button(
-            right_ctrl,
+            ctrl,
             text="▶ Начать проверку",
             bg="#00a88e",
             fg="#ffffff",
             activebackground="#008f78",
-            activeforeground="#ffffff",
             font=("Segoe UI", 12, "bold"),
             relief="flat",
             width=20,
@@ -277,9 +260,8 @@ class AntivirusKVRTApp(tk.Tk):
             command=self.start_scan,
         )
         self.btn_start.pack(pady=(0, 6))
-
         self.btn_stop = tk.Button(
-            right_ctrl,
+            ctrl,
             text="⏹ Остановить",
             bg="#1e293b",
             fg="#94a3b8",
@@ -291,66 +273,60 @@ class AntivirusKVRTApp(tk.Tk):
         )
         self.btn_stop.pack()
 
-        prog_frame = tk.Frame(self.tab_scan, bg="#101820", padx=14, pady=10)
-        prog_frame.pack(fill="x", pady=(0, 10))
-
-        stat_row = tk.Frame(prog_frame, bg="#101820")
-        stat_row.pack(fill="x", pady=(0, 6))
-
+        pframe = tk.Frame(self.tab_scan, bg="#101820", padx=14, pady=10)
+        pframe.pack(fill="x", pady=(0, 10))
+        srow = tk.Frame(pframe, bg="#101820")
+        srow.pack(fill="x", pady=(0, 6))
         self.lbl_status = tk.Label(
-            stat_row,
+            srow,
             text="Готов к проверке системы",
             bg="#101820",
             fg="#e2e8f0",
             font=("Segoe UI", 9, "bold"),
         )
         self.lbl_status.pack(side="left")
-
         self.lbl_counters = tk.Label(
-            stat_row,
+            srow,
             text="Проверено: 0 | Угроз: 0",
             bg="#101820",
             fg="#00d2b4",
             font=("Segoe UI", 9, "bold"),
         )
         self.lbl_counters.pack(side="right")
-
         self.progress = ttk.Progressbar(
-            prog_frame,
-            style="KVRT.Horizontal.TProgressbar",
-            mode="determinate",
+            pframe, style="KVRT.Horizontal.TProgressbar", mode="determinate"
         )
         self.progress.pack(fill="x")
 
-        tbl_frame = tk.Frame(self.tab_scan, bg="#101820")
-        tbl_frame.pack(fill="both", expand=True)
-
-        cols = ("risk", "type", "target", "reason")
+        tframe = tk.Frame(self.tab_scan, bg="#101820")
+        tframe.pack(fill="both", expand=True)
         self.tree_threats = ttk.Treeview(
-            tbl_frame, columns=cols, show="headings", selectmode="browse"
+            tframe,
+            columns=("risk", "type", "target", "reason"),
+            show="headings",
+            selectmode="browse",
         )
         self.tree_threats.heading("risk", text="Риск")
         self.tree_threats.heading("type", text="Тип угрозы")
         self.tree_threats.heading("target", text="Объект / Путь")
         self.tree_threats.heading("reason", text="Вердикт движка")
-
         self.tree_threats.column("risk", width=85, anchor="center")
         self.tree_threats.column("type", width=170)
         self.tree_threats.column("target", width=420)
         self.tree_threats.column("reason", width=340)
+        self.tree_threats.bind("<Double-1>", self.open_threat_location)
 
         sb = ttk.Scrollbar(
-            tbl_frame, orient="vertical", command=self.tree_threats.yview
+            tframe, orient="vertical", command=self.tree_threats.yview
         )
         self.tree_threats.configure(yscrollcommand=sb.set)
         self.tree_threats.pack(side="left", fill="both", expand=True)
         sb.pack(side="right", fill="y")
 
-        act_bar = tk.Frame(self.tab_scan, bg="#0b1116")
-        act_bar.pack(fill="x", pady=(8, 2))
-
+        abar = tk.Frame(self.tab_scan, bg="#0b1116")
+        abar.pack(fill="x", pady=(8, 2))
         tk.Button(
-            act_bar,
+            abar,
             text="⚡ Лечить / Удалить выбранное",
             bg="#dc2626",
             fg="white",
@@ -360,9 +336,8 @@ class AntivirusKVRTApp(tk.Tk):
             pady=7,
             command=self.cure_selected,
         ).pack(side="left", padx=(0, 6))
-
         tk.Button(
-            act_bar,
+            abar,
             text="📦 В карантин",
             bg="#d97706",
             fg="white",
@@ -372,9 +347,8 @@ class AntivirusKVRTApp(tk.Tk):
             pady=7,
             command=self.quarantine_selected,
         ).pack(side="left", padx=6)
-
         tk.Button(
-            act_bar,
+            abar,
             text="✅ Пропустить (в белый список)",
             bg="#1e293b",
             fg="#cbd5e1",
@@ -384,10 +358,9 @@ class AntivirusKVRTApp(tk.Tk):
             pady=7,
             command=self.ignore_selected,
         ).pack(side="left", padx=6)
-
         self.btn_cure_all = tk.Button(
-            act_bar,
-            text="🛡️ Нейтрализовать все (0)",
+            abar,
+            text="🛡️ В карантин все (0)",
             bg="#00a88e",
             fg="white",
             font=("Segoe UI", 9, "bold"),
@@ -397,10 +370,10 @@ class AntivirusKVRTApp(tk.Tk):
             command=self.neutralize_all,
         )
         self.btn_cure_all.pack(side="right")
+
     def _build_quarantine_tab(self):
         top = tk.Frame(self.tab_quar, bg="#0b1116")
         top.pack(fill="x", pady=8)
-
         tk.Label(
             top,
             text="Изолированные файлы (безопасно заблокированы):",
@@ -408,7 +381,6 @@ class AntivirusKVRTApp(tk.Tk):
             fg="#e2e8f0",
             font=("Segoe UI", 10, "bold"),
         ).pack(side="left")
-
         tk.Button(
             top,
             text="🔄 Обновить",
@@ -420,9 +392,11 @@ class AntivirusKVRTApp(tk.Tk):
             command=self.refresh_quarantine_list,
         ).pack(side="right")
 
-        cols = ("date", "name", "orig_path")
         self.tree_quar = ttk.Treeview(
-            self.tab_quar, columns=cols, show="headings"
+            self.tab_quar,
+            columns=("date", "name", "orig_path"),
+            show="headings",
+            selectmode="browse",
         )
         self.tree_quar.heading("date", text="Дата изоляции")
         self.tree_quar.heading("name", text="Имя файла")
@@ -432,11 +406,10 @@ class AntivirusKVRTApp(tk.Tk):
         self.tree_quar.column("orig_path", width=620)
         self.tree_quar.pack(fill="both", expand=True, pady=4)
 
-        q_btns = tk.Frame(self.tab_quar, bg="#0b1116")
-        q_btns.pack(fill="x", pady=6)
-
+        qbtns = tk.Frame(self.tab_quar, bg="#0b1116")
+        qbtns.pack(fill="x", pady=6)
         tk.Button(
-            q_btns,
+            qbtns,
             text="♻️ Восстановить файл",
             bg="#0284c7",
             fg="white",
@@ -446,9 +419,8 @@ class AntivirusKVRTApp(tk.Tk):
             pady=7,
             command=self.restore_quarantined,
         ).pack(side="left", padx=(0, 8))
-
         tk.Button(
-            q_btns,
+            qbtns,
             text="🗑️ Удалить навсегда",
             bg="#dc2626",
             fg="white",
@@ -462,7 +434,6 @@ class AntivirusKVRTApp(tk.Tk):
     def _build_shield_tab(self):
         top = tk.Frame(self.tab_shield, bg="#0b1116")
         top.pack(fill="x", pady=10)
-
         self.btn_shield = tk.Button(
             top,
             text="▶ Включить защиту Загрузок и Рабочего стола",
@@ -475,7 +446,6 @@ class AntivirusKVRTApp(tk.Tk):
             command=self.toggle_shield,
         )
         self.btn_shield.pack(side="left")
-
         self.shield_log = scrolledtext.ScrolledText(
             self.tab_shield,
             bg="#101820",
@@ -488,7 +458,6 @@ class AntivirusKVRTApp(tk.Tk):
     def _build_network_tab(self):
         bar = tk.Frame(self.tab_net, bg="#0b1116")
         bar.pack(fill="x", pady=8)
-
         tk.Label(
             bar,
             text="Активные внешние TCP-соединения процессов:",
@@ -496,7 +465,6 @@ class AntivirusKVRTApp(tk.Tk):
             fg="#e2e8f0",
             font=("Segoe UI", 10, "bold"),
         ).pack(side="left")
-
         tk.Button(
             bar,
             text="🔄 Обновить список",
@@ -509,16 +477,15 @@ class AntivirusKVRTApp(tk.Tk):
             command=self.refresh_network_tab,
         ).pack(side="right")
 
-        cols = ("proc", "local", "remote")
         self.tree_net = ttk.Treeview(
-            self.tab_net, columns=cols, show="headings"
+            self.tab_net, columns=("proc", "local", "remote"), show="headings"
         )
         self.tree_net.heading("proc", text="Процесс / PID")
         self.tree_net.heading("local", text="Локальный адрес")
         self.tree_net.heading("remote", text="Внешний узел")
-        self.tree_net.column("proc", width=220)
-        self.tree_net.column("local", width=350)
-        self.tree_net.column("remote", width=440)
+        self.tree_net.column("proc", width=240)
+        self.tree_net.column("local", width=340)
+        self.tree_net.column("remote", width=430)
         self.tree_net.pack(fill="both", expand=True, pady=4)
 
     def choose_custom_folder(self):
@@ -538,12 +505,12 @@ class AntivirusKVRTApp(tk.Tk):
     def start_scan(self):
         if self.scanning:
             return
-        areas = [
+        areas = (
             self.var_mem.get(),
             self.var_autorun.get(),
             self.var_quick.get(),
             self.var_custom.get(),
-        ]
+        )
         if not any(areas):
             messagebox.showwarning(
                 "Внимание", "Выберите хотя бы одну область для проверки."
@@ -560,11 +527,9 @@ class AntivirusKVRTApp(tk.Tk):
         self.threats.clear()
         self.tree_threats.delete(*self.tree_threats.get_children())
         self._update_threat_counter(0)
-
         self.btn_start.config(state="disabled", bg="#1e293b")
         self.btn_stop.config(state="normal", bg="#dc2626", fg="white")
         self.progress["value"] = 0
-
         threading.Thread(target=self._scan_worker, daemon=True).start()
 
     def stop_scan(self):
@@ -585,14 +550,14 @@ class AntivirusKVRTApp(tk.Tk):
                 " | ".join(threat_dict["reasons"]),
             ),
         )
-        self._update_threat_counter(len(self.threats))
+        active_cnt = sum(1 for x in self.threats if x is not None)
+        self._update_threat_counter(active_cnt)
 
     def _update_threat_counter(self, count):
-        self.btn_cure_all.config(text=f"🛡️ Нейтрализовать все ({count})")
+        self.btn_cure_all.config(text=f"🛡️ В карантин все ({count})")
 
     def _scan_worker(self):
-        checked_count = 0
-
+        checked = 0
         if self.var_mem.get() and not self.stop_flag:
             self.after(
                 0,
@@ -601,7 +566,7 @@ class AntivirusKVRTApp(tk.Tk):
                 ),
             )
             for score, cat, path, reasons, meta in scan_running_processes():
-                checked_count += 1
+                checked += 1
                 item = {
                     "score": score,
                     "category": cat,
@@ -610,22 +575,16 @@ class AntivirusKVRTApp(tk.Tk):
                     "meta": meta,
                 }
                 self.after(0, lambda it=item: self._add_threat_to_ui(it))
-            self.after(
-                0,
-                lambda c=checked_count: self.lbl_counters.config(
-                    text=f"Проверено: {c} | Угроз: {len(self.threats)}"
-                ),
-            )
 
         if self.var_autorun.get() and not self.stop_flag:
             self.after(
                 0,
                 lambda: self.lbl_status.config(
-                    text="Проверка объектов автозапуска реестра..."
+                    text="Проверка автозапуска, планировщика и hosts..."
                 ),
             )
             for score, cat, target, reasons, meta in scan_autorun():
-                checked_count += 1
+                checked += 1
                 item = {
                     "score": score,
                     "category": cat,
@@ -634,70 +593,58 @@ class AntivirusKVRTApp(tk.Tk):
                     "meta": meta,
                 }
                 self.after(0, lambda it=item: self._add_threat_to_ui(it))
-            self.after(
-                0,
-                lambda c=checked_count: self.lbl_counters.config(
-                    text=f"Проверено: {c} | Угроз: {len(self.threats)}"
-                ),
-            )
 
-        files_to_scan = []
-        strict_single = False
-
+        files, strict_single = [], False
         if self.var_custom.get() and self.custom_target and not self.stop_flag:
             if os.path.isfile(self.custom_target):
-                files_to_scan.append(self.custom_target)
+                files.append(self.custom_target)
                 strict_single = True
             elif os.path.isdir(self.custom_target):
-                self._collect_files(self.custom_target, files_to_scan)
+                self._collect_files(self.custom_target, files)
 
         if self.var_quick.get() and not self.stop_flag:
             home = os.path.expanduser("~")
-            quick_dirs = [
+            q_dirs = (
                 os.path.join(home, "Desktop"),
                 os.path.join(home, "Downloads"),
                 os.path.join(home, "AppData", "Local"),
                 os.path.join(home, "AppData", "Roaming"),
                 os.environ.get("ProgramData", "C:\\ProgramData"),
-            ]
-            for d in quick_dirs:
+            )
+            for d in q_dirs:
                 if self.stop_flag:
                     break
-                self._collect_files(d, files_to_scan)
+                self._collect_files(d, files)
 
-        files_to_scan = list(dict.fromkeys(files_to_scan))
-        total_files = len(files_to_scan)
-
-        if total_files > 0 and not self.stop_flag:
-            self.after(0, lambda: self.progress.configure(maximum=total_files))
+        files = list(dict.fromkeys(files))
+        total = len(files)
+        if total > 0 and not self.stop_flag:
+            self.after(0, lambda: self.progress.configure(maximum=total))
             workers = max(2, min(8, (os.cpu_count() or 4)))
-
             with ProcessPoolExecutor(max_workers=workers) as pool:
                 futures = {
                     pool.submit(analyze_file_worker, f, strict_single): f
-                    for f in files_to_scan
+                    for f in files
                 }
                 for idx, fut in enumerate(as_completed(futures), 1):
                     if self.stop_flag:
                         pool.shutdown(wait=False, cancel_futures=True)
                         break
-
-                    checked_count += 1
-                    if idx % 80 == 0 or idx == total_files:
-                        short_name = os.path.basename(futures[fut])
+                    checked += 1
+                    if idx % 80 == 0 or idx == total:
+                        fn = os.path.basename(futures[fut])
                         self.after(
                             0,
-                            lambda i=idx, c=checked_count, fn=short_name: (
+                            lambda i=idx, c=checked, name=fn: (
                                 self.progress.configure(value=i),
                                 self.lbl_status.config(
-                                    text=f"Сканирование: {fn}"
+                                    text=f"Сканирование: {name}"
                                 ),
                                 self.lbl_counters.config(
                                     text=f"Проверено: {c} | Угроз: {len(self.threats)}"
                                 ),
                             ),
                         )
-
                     res = fut.result()
                     if res:
                         score, status, fpath, reasons = res
@@ -715,20 +662,20 @@ class AntivirusKVRTApp(tk.Tk):
                         elif not strict_single:
                             ver = deep_reverify(res)
                             if ver:
-                                v_score, v_status, v_path, v_reasons = ver
+                                vs, vcat, vp, vr = ver
                                 item = {
-                                    "score": v_score,
-                                    "category": v_status,
-                                    "target": v_path,
-                                    "reasons": v_reasons,
-                                    "meta": {"type": "file", "path": v_path},
+                                    "score": vs,
+                                    "category": vcat,
+                                    "target": vp,
+                                    "reasons": vr,
+                                    "meta": {"type": "file", "path": vp},
                                 }
                                 self.after(
                                     0,
                                     lambda it=item: self._add_threat_to_ui(it),
                                 )
 
-        self.after(0, lambda c=checked_count: self._finish_scan(c))
+        self.after(0, lambda c=checked: self._finish_scan(c))
 
     def _collect_files(self, base_dir, out_list):
         if not os.path.isdir(base_dir):
@@ -747,47 +694,57 @@ class AntivirusKVRTApp(tk.Tk):
                 if not is_excluded(fp):
                     out_list.append(fp)
 
-    def _finish_scan(self, checked_count):
+    def _finish_scan(self, checked):
         self.scanning = False
         self.btn_start.config(state="normal", bg="#00a88e")
         self.btn_stop.config(state="disabled", bg="#1e293b", fg="#94a3b8")
-
-        state_txt = (
-            "Проверка прервана пользователем."
+        self.lbl_status.config(
+            text="Проверка прервана."
             if self.stop_flag
             else "Проверка успешно завершена!"
         )
-        self.lbl_status.config(text=state_txt)
         self.lbl_counters.config(
-            text=f"Проверено: {checked_count} | Угроз: {len(self.threats)}"
+            text=f"Проверено: {checked} | Угроз: {len(self.threats)}"
         )
-
         if not self.stop_flag:
-            if len(self.threats) == 0:
+            if not self.threats:
                 messagebox.showinfo(
-                    "KVRT — Результат",
-                    f"Угроз не обнаружено!\nПроверено объектов: {checked_count}",
+                    "MyAntivirus — Результат",
+                    f"Угроз не обнаружено!\nПроверено объектов: {checked}",
                 )
             else:
                 messagebox.showwarning(
-                    "KVRT — Обнаружены угрозы",
+                    "MyAntivirus — Угрозы",
                     f"Найдено угроз: {len(self.threats)}.\n"
-                    "Выберите действие в таблице или нажмите «Нейтрализовать все».",
+                    "Выберите действие в таблице или нажмите «В карантин все».",
                 )
+
     def _get_selected_index(self):
         sel = self.tree_threats.selection()
         if not sel:
-            messagebox.showinfo("Выбор объекта", "Выберите угрозу в списке.")
+            messagebox.showinfo(
+                "Выбор объекта", "Сначала выберите строку в таблице угроз."
+            )
             return None
-        return int(sel)
+        first_iid, *_ = sel
+        return int(first_iid)
 
-    def _neutralize_item(self, idx, mode="cure"):
+    def open_threat_location(self, _event=None):
+        idx = self._get_selected_index()
+        if idx is None or self.threats[idx] is None:
+            return
+        meta = self.threats[idx]["meta"]
+        if meta["type"] in ("file", "process") and os.path.exists(meta["path"]):
+            subprocess.run(
+                ["explorer", "/select,", os.path.normpath(meta["path"])]
+            )
+
+    def _neutralize_item(self, idx, mode="quarantine"):
         item = self.threats[idx]
         if item is None:
             return False
         meta = item["meta"]
         mtype = meta["type"]
-
         try:
             if mtype == "process":
                 kill_process_by_pid(meta["pid"])
@@ -798,13 +755,11 @@ class AntivirusKVRTApp(tk.Tk):
                     else:
                         os.remove(fpath)
                 return True
-
-            elif mtype == "autorun":
+            if mtype == "autorun":
                 return remove_autorun_entry(
                     meta["hive"], meta["subkey"], meta["name"]
                 )
-
-            elif mtype == "file":
+            if mtype == "file":
                 fpath = meta["path"]
                 if os.path.exists(fpath):
                     if mode == "quarantine":
@@ -814,7 +769,7 @@ class AntivirusKVRTApp(tk.Tk):
                 return True
         except Exception as e:
             messagebox.showerror(
-                "Ошибка лечения", f"Не удалось обработать объект:\n{e}"
+                "Ошибка", f"Не удалось обработать объект:\n{e}"
             )
             return False
         return False
@@ -824,7 +779,6 @@ class AntivirusKVRTApp(tk.Tk):
         q_name = f"{ts}_{os.path.basename(fpath)}.quarantined"
         q_path = os.path.join(QUARANTINE_DIR, q_name)
         shutil.move(fpath, q_path)
-
         meta_info = {
             "orig_path": os.path.abspath(fpath),
             "date": datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
@@ -835,13 +789,12 @@ class AntivirusKVRTApp(tk.Tk):
 
     def cure_selected(self):
         idx = self._get_selected_index()
-        if idx is None:
-            return
-        if self._neutralize_item(idx, mode="cure"):
+        if idx is not None and self._neutralize_item(idx, mode="cure"):
             self.threats[idx] = None
             self.tree_threats.delete(str(idx))
-            rem = sum(1 for x in self.threats if x is not None)
-            self._update_threat_counter(rem)
+            self._update_threat_counter(
+                sum(1 for x in self.threats if x is not None)
+            )
 
     def quarantine_selected(self):
         idx = self._get_selected_index()
@@ -850,14 +803,15 @@ class AntivirusKVRTApp(tk.Tk):
         if self.threats[idx]["meta"]["type"] == "autorun":
             messagebox.showinfo(
                 "Карантин",
-                "Записи реестра нельзя поместить в карантин. Нажмите «Лечить / Удалить».",
+                "Запись реестра нельзя поместить в карантин. Нажмите «Лечить / Удалить».",
             )
             return
         if self._neutralize_item(idx, mode="quarantine"):
             self.threats[idx] = None
             self.tree_threats.delete(str(idx))
-            rem = sum(1 for x in self.threats if x is not None)
-            self._update_threat_counter(rem)
+            self._update_threat_counter(
+                sum(1 for x in self.threats if x is not None)
+            )
 
     def ignore_selected(self):
         idx = self._get_selected_index()
@@ -868,24 +822,24 @@ class AntivirusKVRTApp(tk.Tk):
             add_to_whitelist(meta["path"])
         self.threats[idx] = None
         self.tree_threats.delete(str(idx))
-        rem = sum(1 for x in self.threats if x is not None)
-        self._update_threat_counter(rem)
+        self._update_threat_counter(
+            sum(1 for x in self.threats if x is not None)
+        )
 
     def neutralize_all(self):
         active = [i for i, x in enumerate(self.threats) if x is not None]
-        if not active:
-            return
-        if not messagebox.askyesno(
+        if not active or not messagebox.askyesno(
             "Подтверждение",
-            f"Нейтрализовать все найденные угрозы ({len(active)} шт.)?",
+            f"Поместить все найденные угрозы ({len(active)} шт.) в карантин?",
         ):
             return
         for idx in active:
-            if self._neutralize_item(idx, mode="cure"):
+            if self._neutralize_item(idx, mode="quarantine"):
                 self.threats[idx] = None
                 self.tree_threats.delete(str(idx))
-        rem = sum(1 for x in self.threats if x is not None)
-        self._update_threat_counter(rem)
+        self._update_threat_counter(
+            sum(1 for x in self.threats if x is not None)
+        )
 
     def refresh_quarantine_list(self):
         self.tree_quar.delete(*self.tree_quar.get_children())
@@ -905,20 +859,21 @@ class AntivirusKVRTApp(tk.Tk):
                         dt = data.get("date", dt)
                 except Exception:
                     pass
-            clean_name = fn.replace(".quarantined", "")
             self.tree_quar.insert(
-                "", "end", iid=fn, values=(dt, clean_name, orig_path)
+                "",
+                "end",
+                iid=fn,
+                values=(dt, fn.replace(".quarantined", ""), orig_path),
             )
 
     def restore_quarantined(self):
         sel = self.tree_quar.selection()
         if not sel:
             return
-        fn = sel
+        fn, *_ = sel
         q_path = os.path.join(QUARANTINE_DIR, fn)
         meta_path = q_path + ".meta"
-        orig_path = self.tree_quar.item(fn, "values")
-
+        _, _, orig_path = self.tree_quar.item(fn, "values")
         try:
             if orig_path != "Неизвестно":
                 os.makedirs(os.path.dirname(orig_path), exist_ok=True)
@@ -946,7 +901,7 @@ class AntivirusKVRTApp(tk.Tk):
         sel = self.tree_quar.selection()
         if not sel:
             return
-        fn = sel
+        fn, *_ = sel
         if not messagebox.askyesno(
             "Удаление",
             "Удалить файл из карантина без возможности восстановления?",
@@ -966,10 +921,12 @@ class AntivirusKVRTApp(tk.Tk):
     def toggle_shield(self):
         self.shield_active = not self.shield_active
         if self.shield_active:
-            self.btn_shield.config(text="⏹ Остановить защиту 24/7", bg="#dc2626")
+            self.btn_shield.config(
+                text="⏹ Остановить защиту 24/7", bg="#dc2626"
+            )
             self.shield_log.insert(
                 "end",
-                "[Монитор 24/7] Защита Загрузок и Рабочего стола активна...\n",
+                "[Монитор 24/7] Защита папок Загрузки и Рабочий стол активна...\n",
             )
             threading.Thread(target=self._shield_loop, daemon=True).start()
         else:
@@ -1033,9 +990,8 @@ class AntivirusKVRTApp(tk.Tk):
         for row in get_active_connections():
             self.tree_net.insert("", "end", values=row)
 
-
 if __name__ == "__main__":
     multiprocessing.freeze_support()
     _mutex = check_single_instance()
-    app = AntivirusKVRTApp()
+    app = AntivirusApp()
     app.mainloop()
